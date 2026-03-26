@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import streamlit as st
 from sqlalchemy import (
     create_engine, 
     Column, 
@@ -18,8 +19,14 @@ from datetime import datetime
 
 load_dotenv()
 
+
+try:
+    DATABASE_URL = st.secrets["DATABASE_URL"]
+except Exception:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
 #connexion à la base distante avec le lien dans le fichier .env
-engine = create_engine(os.getenv("DATABASE_URL"))
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind = engine)
 Base = declarative_base()
 

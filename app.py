@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 import pandas as pd
+import bcrypt
+from dotenv import load_dotenv
+load_dotenv()
 from crud import (
     ajouter_utilisateur,
     ajouter_donnee,
@@ -8,12 +11,29 @@ from crud import (
     get_toutes_donnees
 )
 
-mdpasse = os.getenv("MDP")
 
 st.set_page_config(page_title="Gestion Clients", layout="wide")
 st.title("Gestion de Base de Données")
 
 tab_saisie, tab_consultation = st.tabs(["Saisie", "Consultation"])
+
+
+# État d'authentification partagé entre les deux onglets
+if "acces_autorise" not in st.session_state:
+    st.session_state.acces_autorise = False
+
+
+def verifier_mdp(mdp_saisi):
+    try:
+        mdp_hash = st.secrets["MDP"]
+    except Exception:
+        mdp_hash = os.getenv("MDP")
+    
+    if bcrypt.checkpw(mdp_saisi.encode(), mdp_hash.encode()):
+        st.session_state.acces_autorise = True
+        st.rerun()
+    else:
+        st.error("Mot de passe incorrect.")
 
 
 # ==================== SAISIE ====================
@@ -41,40 +61,39 @@ with tab_saisie:
     st.divider()
     st.header("Nouvelle donnée")
 
-    utilisateurs = get_tous_utilisateurs()
-
-    if not utilisateurs:
-        st.info("Aucun utilisateur enregistré. Ajoutez-en un d'abord.")
+    if not st.session_state.acces_autorise:
+        st.warning("Vous devez être authentifié pour ajouter des données.")
+        mdp_saisie = st.text_input("Mot de passe", type="password", key="mdp_saisie")
+        if st.button("Valider", key="btn_saisie"):
+            verifier_mdp(mdp_saisie)
     else:
-        options = {f"{u.nom} (ID: {u.id})": u.id for u in utilisateurs}
+        utilisateurs = get_tous_utilisateurs()
 
-        with st.form("form_donnee", clear_on_submit=True):
-            user_choisi = st.selectbox("Utilisateur", options.keys())
-            valeur = st.number_input("Valeur", step=0.1)
-            categorie = st.selectbox("Catégorie", ["Vente", "Achat", "Autre"])
-            submit_donnee = st.form_submit_button("Ajouter la donnée")
+        if not utilisateurs:
+            st.info("Aucun utilisateur enregistré. Ajoutez-en un d'abord.")
+        else:
+            options = {f"{u.nom} (ID: {u.id})": u.id for u in utilisateurs}
 
-        if submit_donnee:
-            try:
-                ajouter_donnee(options[user_choisi], valeur, categorie)
-                st.success("Donnée ajoutée !")
-            except Exception as e:
-                st.error(f"Erreur : {e}")
+            with st.form("form_donnee", clear_on_submit=True):
+                user_choisi = st.selectbox("Utilisateur", options.keys())
+                valeur = st.number_input("Valeur", step=0.1)
+                categorie = st.selectbox("Catégorie", ["Vente", "Achat", "Autre"])
+                submit_donnee = st.form_submit_button("Ajouter la donnée")
+
+            if submit_donnee:
+                try:
+                    ajouter_donnee(options[user_choisi], valeur, categorie)
+                    st.success("Donnée ajoutée !")
+                except Exception as e:
+                    st.error(f"Erreur : {e}")
 
 # ==================== CONSULTATION ====================
 with tab_consultation:
 
-    if "acces_autorise" not in st.session_state:
-        st.session_state.acces_autorise = False
-
     if not st.session_state.acces_autorise:
-        mdp = st.text_input("Mot de passe pour accéder aux données", type="password")
-        if st.button("Valider"):
-            if mdp == mdpasse:
-                st.session_state.acces_autorise = True
-                st.rerun()
-            else:
-                st.error("Mot de passe incorrect.")
+        mdp_consult = st.text_input("Mot de passe pour accéder aux données", type="password", key="mdp_consult")
+        if st.button("Valider", key="btn_consult"):
+            verifier_mdp(mdp_consult)
     else:
         st.header("Utilisateurs")
         utilisateurs = get_tous_utilisateurs()
