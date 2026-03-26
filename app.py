@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import pandas as pd
 from crud import (
     ajouter_utilisateur,
@@ -7,10 +8,13 @@ from crud import (
     get_toutes_donnees
 )
 
+mdpasse = os.getenv("MDP")
+
 st.set_page_config(page_title="Gestion Clients", layout="wide")
 st.title("Gestion de Base de Données")
 
 tab_saisie, tab_consultation = st.tabs(["Saisie", "Consultation"])
+
 
 # ==================== SAISIE ====================
 with tab_saisie:
@@ -66,7 +70,7 @@ with tab_consultation:
     if not st.session_state.acces_autorise:
         mdp = st.text_input("Mot de passe pour accéder aux données", type="password")
         if st.button("Valider"):
-            if mdp == "chauvesouris":
+            if mdp == mdpasse:
                 st.session_state.acces_autorise = True
                 st.rerun()
             else:
