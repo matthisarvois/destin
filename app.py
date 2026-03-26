@@ -3,56 +3,119 @@ import pandas as pd
 from crud import (
     ajouter_utilisateur,
     ajouter_donnee,
-    get_donnees_utilisateur,
-    get_utilisateur_par_email
+    get_tous_utilisateurs,
+    get_toutes_donnees
 )
-from database import init_db
 
-init_db()
+st.set_page_config(page_title="Gestion Clients", layout="wide")
+st.title("Gestion de Base de Données")
 
-st.title("Mon Application Multi-Utilisateur")
+tab_saisie, tab_consultation = st.tabs(["Saisie", "Consultation"])
 
-# --- Connexion simple par email ---
-email = st.text_input("Votre email pour vous identifier")
+# ==================== SAISIE ====================
+with tab_saisie:
 
-if email:
-    user = get_utilisateur_par_email(email)
+    st.header("Nouvel utilisateur")
+    with st.form("form_utilisateur", clear_on_submit=True):
+        nom = st.text_input("Nom *")
+        email = st.text_input("Email *")
+        age = st.number_input("Âge *", min_value=1, max_value=150, step=1)
+        sexe = st.selectbox("Sexe (optionnel)", ["Non renseigné", "Homme", "Femme", "Autre"])
+        submit_user = st.form_submit_button("Ajouter l'utilisateur")
 
-    if user is None:
-        st.info("Première visite ! Créons votre compte.")
-        nom = st.text_input("Votre nom")
-        if st.button("Créer mon compte") and nom:
-            user = ajouter_utilisateur(nom, email)
-            st.success(f"Bienvenue {nom} !")
-            st.rerun()
+    if submit_user:
+        if not nom or not email:
+            st.error("Le nom et l'email sont obligatoires.")
+        else:
+            sexe_val = None if sexe == "Non renseigné" else sexe
+            try:
+                user = ajouter_utilisateur(nom, email, age, sexe_val)
+                st.success(f"Utilisateur '{nom}' ajouté avec l'ID {user.id} !")
+            except Exception as e:
+                st.error(f"Erreur : {e}")
+
+    st.divider()
+    st.header("Nouvelle donnée")
+
+    utilisateurs = get_tous_utilisateurs()
+
+    if not utilisateurs:
+        st.info("Aucun utilisateur enregistré. Ajoutez-en un d'abord.")
     else:
-        st.success(f"Connecté en tant que {user.nom}")
+        options = {f"{u.nom} (ID: {u.id})": u.id for u in utilisateurs}
 
-        # --- Ajouter des données ---
-        st.subheader("Ajouter une donnée")
-        col1, col2 = st.columns(2)
-        valeur = col1.number_input("Valeur", step=0.1)
-        categorie = col2.selectbox("Catégorie", ["Vente", "Achat", "Autre"])
+        with st.form("form_donnee", clear_on_submit=True):
+            user_choisi = st.selectbox("Utilisateur", options.keys())
+            valeur = st.number_input("Valeur", step=0.1)
+            categorie = st.selectbox("Catégorie", ["Vente", "Achat", "Autre"])
+            submit_donnee = st.form_submit_button("Ajouter la donnée")
 
-        if st.button("Ajouter"):
-            ajouter_donnee(user.id, valeur, categorie)
-            st.success("Donnée ajoutée !")
-            st.rerun()
+        if submit_donnee:
+            try:
+                ajouter_donnee(options[user_choisi], valeur, categorie)
+                st.success("Donnée ajoutée !")
+            except Exception as e:
+                st.error(f"Erreur : {e}")
 
-        # --- Voir ses données (uniquement les siennes) ---
-        st.subheader("Vos données")
-        donnees = get_donnees_utilisateur(user.id)
+# ==================== CONSULTATION ====================
+with tab_consultation:
+
+    if "acces_autorise" not in st.session_state:
+        st.session_state.acces_autorise = False
+
+    if not st.session_state.acces_autorise:
+        mdp = st.text_input("Mot de passe pour accéder aux données", type="password")
+        if st.button("Valider"):
+            if mdp == "chauvesouris":
+                st.session_state.acces_autorise = True
+                st.rerun()
+            else:
+                st.error("Mot de passe incorrect.")
+    else:
+        st.header("Utilisateurs")
+        utilisateurs = get_tous_utilisateurs()
+
+        if utilisateurs:
+            df_users = pd.DataFrame([
+                {
+                    "ID": u.id,
+                    "Nom": u.nom,
+                    "Email": u.email,
+                    "Âge": u.age,
+                    "Sexe": u.sexe or "Non renseigné"
+                }
+                for u in utilisateurs
+            ])
+            st.dataframe(df_users, use_container_width=True)
+            st.metric("Nombre d'utilisateurs", len(utilisateurs))
+        else:
+            st.info("Aucun utilisateur enregistré.")
+
+        st.divider()
+        st.header("Données")
+        donnees = get_toutes_donnees()
 
         if donnees:
-            df = pd.DataFrame([
+            df_donnees = pd.DataFrame([
                 {
+                    "ID": d.id,
+                    "Utilisateur ID": d.utilisateur_id,
                     "Valeur": d.valeur,
                     "Catégorie": d.categorie,
-                    "Date": d.date_ajout
+                    "Date ajout": d.date_ajout
                 }
                 for d in donnees
             ])
-            st.dataframe(df)
-            st.metric("Total", f"{df['Valeur'].sum():.2f}")
+            st.dataframe(df_donnees, use_container_width=True)
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Nombre d'entrées", len(donnees))
+            col2.metric("Total valeurs", f"{df_donnees['Valeur'].sum():.2f}")
+            col3.metric("Moyenne", f"{df_donnees['Valeur'].mean():.2f}")
         else:
-            st.info("Aucune donnée pour l'instant")
+            st.info("Aucune donnée enregistrée.")
+
+        st.divider()
+        if st.button("Se déconnecter"):
+            st.session_state.acces_autorise = False
+            st.rerun()

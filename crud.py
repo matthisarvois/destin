@@ -81,3 +81,18 @@ def get_utilisateur_par_email(email):
         ).first()
     finally:
         session.close()
+
+def get_tous_utilisateurs() -> list[Utilisateur]:
+    session = SessionLocal()
+    try:
+        return session.query(Utilisateur).all()
+    finally:
+        session.close()
+
+
+def get_toutes_donnees() -> list[Donnee]:
+    session = SessionLocal()
+    try:
+        return session.query(Donnee).all()
+    finally:
+        session.close()
