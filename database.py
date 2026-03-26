@@ -57,5 +57,5 @@ def init_db():
 
 if __name__=="__main__":
     init_db()
-    print("Tables crées avec succès !")
+    print("Tables crées avec succès !!!!")
 
