@@ -36,7 +36,7 @@ class Utilisateur(Base):
     sexe = Column(String,nullable= True)
 
     #les relations entre les bases de données*
-    donnes = relationship("Donnee",back_populates="utilisateur")
+    donnees = relationship("Donnee",back_populates="utilisateur")
 
 
 class Donnee(Base):
